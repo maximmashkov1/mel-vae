@@ -11,7 +11,7 @@ class DownBlock(nn.Module):
         self.layers = nn.ModuleList([
             ResnetBlock(in_c,out_c, dropout=dropout, is_discr=is_discr),
             ResnetBlock(out_c, dropout=dropout, is_discr=is_discr),
-            ResnetBlock(out_c, dropout=dropout, is_discr=is_discr) if in_c<64 else nn.Identity(),
+            ResnetBlock(out_c, dropout=dropout, is_discr=is_discr),
             Downsample(down_type) if down_type is not None else nn.Identity()])
         self.is_down=down_type is not None
     def forward(self, x):
@@ -28,10 +28,10 @@ class UpBlock(nn.Module):
         out_c = in_c if is_last else out_c
         self.layers = nn.ModuleList([
             Upsample(up_type) if up_type is not None else nn.Identity(),
-            ResnetBlock(in_c,out_c, dropout=dropout),
-            ResnetBlock(out_c, dropout=dropout),
-            ResnetBlock(out_c, dropout=dropout) if out_c<64 else nn.Identity(),
-            nn.Identity() if not is_last else nn.Conv2d(out_c, 1, kernel_size=1)])
+            ResnetBlock(in_c, dropout=dropout),
+            ResnetBlock(in_c, dropout=dropout),
+            ResnetBlock(in_c,out_c, dropout=dropout) if not is_last else nn.Conv2d(in_c, 1, kernel_size=1)])
+
         self.is_up=up_type is not None
             
     def forward(self, x, target_shape):
@@ -45,7 +45,7 @@ class UpBlock(nn.Module):
     
 class MELVAE(nn.Module):
     def __init__(self, encoder_channels=[1,16,64,256,32], encoder_downs=[None,'freq','freq','full','full'], 
-                 decoder_channels=[1,16,64,256,64,4], decoder_ups=[0,0,1,1,1,1],
+                 decoder_channels=[1,16,64,256,64,4], 
                  discr_channels=[1,16,64,192]): 
         """
         Last decoder channels element is the latent size
@@ -139,9 +139,6 @@ class MELVAE(nn.Module):
         return disc_loss, rec_loss, kl_loss, gen_adv_loss, [mu, logvar]
 
 
-    
-
-
 def gradient_penalty(discriminator, real, fake):
     batch_size = real.size(0)
     epsilon = torch.rand(batch_size, 1, 1, 1, requires_grad=True).to(real.device)
@@ -163,6 +160,5 @@ def gradient_penalty(discriminator, real, fake):
 if __name__ == '__main__':
     vae = MELVAE().to('cuda')
     in_=torch.randn(2,1,80,300).to('cuda')
-    torch.save(vae, 'vae.ckp')
     l1,l2,l3,l4, (_1,_2) = vae.get_loss(in_)
     print(l1,l2,l3,l4)
